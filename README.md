@@ -151,55 +151,101 @@ For questions and reproducibility issues, please open a GitHub issue.
 **Email:** 211124120029@zjut.edu.cn
 
 
-## Troubleshooting
+[//]: # (## Troubleshooting)
 
-### **（1）运行命令**
-```Bash
-我在4卡4090上使用命令：CUDA_VISIBLE_DEVICES=0,1,2,3 torchpack dist-run -np 4 python /home/csx/disk2/czy/code/UAV3D-IFTR/tools/train.py
-却报错：
-A process has executed an operation involving a call                                                 
-to the fork() system call to create a child process.                                                
-As a result, the libfabric EFA provider is operating in                                             
-a condition that could result in memory corruption or                                               
-other system errors.                                                                                
-For the libfabric EFA provider to work safely when fork()                                           
-is called, you will need to set the following environment                                           
-variable:                                                                                           
-          RDMAV_FORK_SAFE                                                                           
-However, setting this environment variable can result in
-signficant performance impact to your application due to
-increased cost of memory registration.
-You may want to check with your application vendor to see
-if an application-level alternative (of not using fork)
-exists.
-Your job will now abort.
+[//]: # (### **（1）运行命令**)
 
-原因：
-由于系统安装了 libfabric，导致出现一个典型的 EFA / libfabric + fork 冲突问题，并非你的代码错误，而是分布式启动方式与底层通信库不兼容导致的。
+[//]: # (```Bash)
 
-解决办法1：
-添加环境变量：RDMAV_FORK_SAFE=1 ：但训练时间翻倍
+[//]: # (我在4卡4090上使用命令：CUDA_VISIBLE_DEVICES=0,1,2,3 torchpack dist-run -np 4 python /home/csx/disk2/czy/code/UAV3D-IFTR/tools/train.py)
 
-解决办法2：
-添加临时变量：
-export FI_PROVIDER=
-export FI_LOG_LEVEL=error
-export LD_PRELOAD=
-    原理：
-    1️⃣ FI_PROVIDER=
-    FI_PROVIDER 是 libfabric 的关键环境变量，用来指定底层通信 provider（例如 efa, mlx, tcp 等）
-    当你把它 置为空：
-    libfabric 不会初始化任何 provider
-    所以 fork 时 不会触发 EFA 的 fork-safe 检查
-    原理：torchpack 启动时，父进程 import libfabric 或者 RDMA/NCCL buffer，发现没有 provider 就不会初始化 EFA。
-    2️⃣ FI_LOG_LEVEL=error
-    用来控制 libfabric 的日志级别，避免 info/warning 输出干扰
-    本身不影响性能或 fork-safe，只是清理日志。
-    3️⃣ LD_PRELOAD=
-    LD_PRELOAD 是 Linux 下的 动态库预加载机制
-    一些 HPC 镜像可能通过 LD_PRELOAD 预加载 libfabric 或相关 EFA 库
-    将其置空：
-    禁止 fork 过程中 libfabric 被强制加载
-    从而避免 “fork → EFA → RDMAV_FORK_SAFE” 的死循环/性能瓶颈
-如果你想永久配置，则写进 ~/.bashrc 即可
-```
+[//]: # (却报错：)
+
+[//]: # (A process has executed an operation involving a call                                                 )
+
+[//]: # (to the fork&#40;&#41; system call to create a child process.                                                )
+
+[//]: # (As a result, the libfabric EFA provider is operating in                                             )
+
+[//]: # (a condition that could result in memory corruption or                                               )
+
+[//]: # (other system errors.                                                                                )
+
+[//]: # (For the libfabric EFA provider to work safely when fork&#40;&#41;                                           )
+
+[//]: # (is called, you will need to set the following environment                                           )
+
+[//]: # (variable:                                                                                           )
+
+[//]: # (          RDMAV_FORK_SAFE                                                                           )
+
+[//]: # (However, setting this environment variable can result in)
+
+[//]: # (signficant performance impact to your application due to)
+
+[//]: # (increased cost of memory registration.)
+
+[//]: # (You may want to check with your application vendor to see)
+
+[//]: # (if an application-level alternative &#40;of not using fork&#41;)
+
+[//]: # (exists.)
+
+[//]: # (Your job will now abort.)
+
+[//]: # ()
+[//]: # (原因：)
+
+[//]: # (由于系统安装了 libfabric，导致出现一个典型的 EFA / libfabric + fork 冲突问题，并非你的代码错误，而是分布式启动方式与底层通信库不兼容导致的。)
+
+[//]: # ()
+[//]: # (解决办法1：)
+
+[//]: # (添加环境变量：RDMAV_FORK_SAFE=1 ：但训练时间翻倍)
+
+[//]: # ()
+[//]: # (解决办法2：)
+
+[//]: # (添加临时变量：)
+
+[//]: # (export FI_PROVIDER=)
+
+[//]: # (export FI_LOG_LEVEL=error)
+
+[//]: # (export LD_PRELOAD=)
+
+[//]: # (    原理：)
+
+[//]: # (    1️⃣ FI_PROVIDER=)
+
+[//]: # (    FI_PROVIDER 是 libfabric 的关键环境变量，用来指定底层通信 provider（例如 efa, mlx, tcp 等）)
+
+[//]: # (    当你把它 置为空：)
+
+[//]: # (    libfabric 不会初始化任何 provider)
+
+[//]: # (    所以 fork 时 不会触发 EFA 的 fork-safe 检查)
+
+[//]: # (    原理：torchpack 启动时，父进程 import libfabric 或者 RDMA/NCCL buffer，发现没有 provider 就不会初始化 EFA。)
+
+[//]: # (    2️⃣ FI_LOG_LEVEL=error)
+
+[//]: # (    用来控制 libfabric 的日志级别，避免 info/warning 输出干扰)
+
+[//]: # (    本身不影响性能或 fork-safe，只是清理日志。)
+
+[//]: # (    3️⃣ LD_PRELOAD=)
+
+[//]: # (    LD_PRELOAD 是 Linux 下的 动态库预加载机制)
+
+[//]: # (    一些 HPC 镜像可能通过 LD_PRELOAD 预加载 libfabric 或相关 EFA 库)
+
+[//]: # (    将其置空：)
+
+[//]: # (    禁止 fork 过程中 libfabric 被强制加载)
+
+[//]: # (    从而避免 “fork → EFA → RDMAV_FORK_SAFE” 的死循环/性能瓶颈)
+
+[//]: # (如果你想永久配置，则写进 ~/.bashrc 即可)
+
+[//]: # (```)
